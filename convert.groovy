@@ -31,8 +31,14 @@ class Section {
     String render() {
         def results = ""
         
-        if (attrs['id'] != null) {
-            results += "[[${attrs['id']}]]\n"
+        if (attrs['xml:id'] != null) {
+            results += "[[${attrs['xml:id']}]]\n"
+        } else if (attrs['title'] != null) {
+            if (attrs['title'].attrs['xml:base'] != [null]) {
+                results += "[[${attrs['title'].attrs['xml:base'].join('')}]]\n"
+            } else if (attrs['title'].attrs['xml:id'] != [null]) {
+                results += "[[${attrs['title'].attrs['xml:id'].join('')}]]\n"
+            }
         }
         
         results += "${'='*level} ${attrs['title'].content.join(" ")}\n"
@@ -133,40 +139,39 @@ class Docbook5Handler extends DefaultHandler {
         this.doc = doc
     }
     
+    def extractAllAttrs(Attributes attrs) {
+        def extractedAttrs = [:]
+        for (int i=0; i < attrs.length; i++) {
+            extractedAttrs[attrs.getQName(i)] = attrs.getValue(i)
+        }
+        extractedAttrs
+    }
+    
     void startElement(String ns, String localName, String qName, Attributes attrs) {
+        def extractedAttrs = extractAllAttrs(attrs)
+        log.info("startElement: ${qName} has attrs ${extractedAttrs}")
         if (qName == "book") {
-            qNameStack.push(new Chunk([qName:qName]))
-            rootSection = new Section([qName:qName, level:1])
+            qNameStack.push(new Chunk([qName:qName, attrs:extractedAttrs]))
+            rootSection = new Section([qName:qName, attrs:extractedAttrs, level:1])
             sectionStack.push(rootSection)
             log.info("PUSH ${qName}: Top of qNameStack is now ${qNameStack[-1]}")
             log.info("PUSH ${qName}: Top of sectionStack is now ${sectionStack[-1]}")
         } else if (qName == "chapter") {
-            qNameStack.push(new Chunk([qName:qName]))
-            rootSection = new Section([qName:qName, level:2])
+            qNameStack.push(new Chunk([qName:qName, attrs:extractedAttrs]))
+            rootSection = new Section([qName:qName, attrs:extractedAttrs, level:2])
             sectionStack.push(rootSection)
             log.info("PUSH ${qName}: Top of qNameStack is now ${qNameStack[-1]}")
             log.info("PUSH ${qName}: Top of sectionStack is now ${sectionStack[-1]}")
         } else if (["legalnotice", "section", "simplesect", "para", "programlisting", "itemizedlist", "listitem"].contains(qName)) {        
-            qNameStack.push(new Chunk([qName:qName]))
-            sectionStack.push(new Section([qName:qName, level:sectionStack[-1].level+1,
-                attrs:[id:attrs.getValue('xml:id')]]))
+            qNameStack.push(new Chunk([qName:qName, attrs:extractedAttrs]))
+            sectionStack.push(new Section([qName:qName, level:sectionStack[-1].level+1]))
             log.info("PUSH ${qName}: Top of qNameStack is now ${qNameStack[-1]}")
             log.info("PUSH ${qName}: Top of sectionStack is now ${sectionStack[-1]}")
         } else if (qName == "link") {
-            def link
-            if (attrs.getValue('linkend') != null) {
-                link = attrs.getValue('linkend')
-            } else if (attrs.getValue('xlink:href') != null) {
-                link = attrs.getValue('xlink:href')
-            }
-            qNameStack.push(new Chunk([qName:qName, attrs:[link:link]]))
+            qNameStack.push(new Chunk([qName:qName, attrs:extractedAttrs]))
             log.info("PUSH ${qName}: Top of qNameStack is now ${qNameStack[-1]}")
         } else {
-            def newattrs = [:]
-            if (qName == "xi:include") {
-                newattrs['href'] = attrs.getValue("href")
-            }            
-            qNameStack.push(new Chunk([qName:qName, attrs:newattrs]))
+            qNameStack.push(new Chunk([qName:qName, attrs:extractedAttrs]))
             log.info("PUSH ${qName}: Top of qNameStack is now ${qNameStack[-1]}")
         }
     }
@@ -198,12 +203,14 @@ class Docbook5Handler extends DefaultHandler {
                 sectionStack[-1].attrs[qName] = section  
             } else if (qName == "para") {
                 sectionStack[-1].chunks += new Paragraph([content:item.content])
+                sectionStack[-1].chunks += section.chunks
             } else if (["section", "simplesect"].contains(qName)) {
                 sectionStack[-1].chunks += section                
-                log.info("POP section: Pulled off ${section} and appended it to ${sectionStack[-1].attrs['title']}")                    
+                log.info("POP section: Pulled off ${section} and appended it to ${sectionStack[-1].attrs['title']}")
             } else if (qName == "programlisting") {
                 sectionStack[-1].chunks += new ProgramListing([content:item.content])
-                log.info("POP section: Pulled off ${section} and appended it to ${sectionStack[-1].attrs['title']}")                    
+                log.info("POP section: Pulled off ${section} and appended it to ${sectionStack[-1].attrs['title']}")
+                log.info("POP section: Top of sectionStack now looks like ${sectionStack[-1]}")
             } else if (qName == "listitem") {
                 log.info("POP ${qName}: ${section}")
                 sectionStack[-1].chunks += section.chunks.join("")
