@@ -42,11 +42,12 @@ class Section {
         }
         
         if (attrs['id'] != null) {
-            log.info("+++ ${attrs['id']}")
-            results += "[${attrs['id']}]\n"
+            results += "[[${attrs['id']}]]\n"
         }
-        
-        results += "${'='*level} ${attrs['title'].content.join(" ")}\n"
+
+        if (attrs['title'] != null) {
+            results += "${'='*level} ${attrs['title'].content.join(" ")}\n"
+        }
         
         if (attrs['author'] != null) {
             results += attrs['author'].join(", ") + "\n"
@@ -174,7 +175,7 @@ class Docbook5Handler extends DefaultHandler {
             sectionStack.push(rootSection)
             log.info("PUSH ${qName}: Top of qNameStack is now ${qNameStack[-1]}")
             log.info("PUSH ${qName}: Top of sectionStack is now ${sectionStack[-1]}")
-        } else if (["chapter", "preface"].contains(qName)) {
+        } else if (["chapter", "preface", "partintro"].contains(qName)) {
             qNameStack.push(new Chunk([qName:qName, attrs:extractedAttrs]))
             rootSection = new Section([qName:qName, attrs:extractedAttrs, level:2])
             sectionStack.push(rootSection)
@@ -185,9 +186,6 @@ class Docbook5Handler extends DefaultHandler {
             sectionStack.push(new Section([qName:qName, level:sectionStack[-1].level+1]))
             log.info("PUSH ${qName}: Top of qNameStack is now ${qNameStack[-1]}")
             log.info("PUSH ${qName}: Top of sectionStack is now ${sectionStack[-1]}")
-        } else if (qName == "link") {
-            qNameStack.push(new Chunk([qName:qName, attrs:extractedAttrs]))
-            log.info("PUSH ${qName}: Top of qNameStack is now ${qNameStack[-1]}")
         } else {
             qNameStack.push(new Chunk([qName:qName, attrs:extractedAttrs]))
             log.info("PUSH ${qName}: Top of qNameStack is now ${qNameStack[-1]}")
@@ -212,7 +210,7 @@ class Docbook5Handler extends DefaultHandler {
             log.info("POP ${qName}: Top of qNameStack is now ${qNameStack[-1]}")
         }
         log.info("POP ${qName}: Top of sectionStack = ${sectionStack[-1]}")
-        if (["book", "chapter", "preface"].contains(qName)) {
+        if (["book", "chapter", "preface", "partintro"].contains(qName)) {
             // nothing
         } else if (["legalnotice", "section", "simplesect", "para", "programlisting", "itemizedlist", "listitem", "part"].contains(qName)) {
             def section = sectionStack.pop()
@@ -262,6 +260,10 @@ class Docbook5Handler extends DefaultHandler {
             }
             if (item.attrs['xlink:href'] != null) {
                 qNameStack[-1].content += "${item.attrs['xlink:href']}[${item.content}]"
+            }
+        } else if (qName == "ulink") {
+            if (item.attrs['url'] != null) {
+                qNameStack[-1].content += "${item.attrs['url']}[${item.content}]"
             }
         } else if (sectionStack[-1].attrs[item.qName] == null) {
             sectionStack[-1].attrs[item.qName] = [item]
