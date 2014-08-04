@@ -56,6 +56,7 @@ class Section {
             results += ":toc:\n"
             results += ":toclevels: 4\n"
             results += ":source-highlighter: prettify\n"
+            results += ":idprefix:\n"
         }
         if (attrs['legalnotice'] != null) {
             results += ":legalnotice: ${attrs['legalnotice'].chunks.join(" ")}\n"        
@@ -83,7 +84,7 @@ class Include {
     }
     
     String toString() {
-        "include::${chunk.attrs['href']-'xml'+'adoc'}[]"
+        "include::${chunk.attrs['href']-'xml'+'ad'}[]"
     }
 }
 
@@ -105,7 +106,7 @@ class ProgramListing {
     def attrs
     
     String render() {
-        log.info("+++ ${attrs}")
+        log.info("${attrs}")
         if (attrs['language'] != null) {
             "[source,${attrs['language']}]\n----\n${content}\n----\n"
         } else {
@@ -213,6 +214,7 @@ class Docbook5Handler extends DefaultHandler {
                 sectionStack[-1].chunks += new Paragraph([content:item.content])
                 sectionStack[-1].chunks += section.chunks
             } else if (["section", "simplesect"].contains(qName)) {
+                section.attrs += item.attrs
                 sectionStack[-1].chunks += section                
                 log.info("POP section: Pulled off ${section} and appended it to ${sectionStack[-1].attrs['title']}")
             } else if (qName == "programlisting") {
@@ -245,12 +247,12 @@ class Docbook5Handler extends DefaultHandler {
             log.info("POP ${qName}: ${qNameStack[-1].content}")
             qNameStack[-1].content += "`${item.content}`"
         } else if (qName == "link") {
-            if (item.attrs['link'] != null) {
-                if (item.attrs['link'].startsWith('http')) {
-                    qNameStack[-1].content += "${item.attrs['link']}[${item.content}]"
-                } else {
-                    qNameStack[-1].content += "<<${item.attrs['link']},${item.content}>>"
-                }
+            log.info("POP ${qName}: attrs is ${item.attrs}")
+            if (item.attrs['linkend'] != null) {
+                qNameStack[-1].content += "<<${item.attrs['linkend']},${item.content}>>"
+            }
+            if (item.attrs['xlink:href'] != null) {
+                qNameStack[-1].content += "${item.attrs['xlink:href']}[${item.content}]"
             }
         } else if (sectionStack[-1].attrs[item.qName] == null) {
             sectionStack[-1].attrs[item.qName] = [item]
@@ -272,8 +274,8 @@ class Docbook5Handler extends DefaultHandler {
         asciidoc.eachLine { line ->
             log.info(line)
         }
-        log.info("Creating ${doc.name.split('\\.')[0]+'.adoc'}...")
-        new File(doc.name.split('\\.')[0] + '.adoc').withWriter("UTF-8") { out ->
+        log.info("Creating ${doc.name.split('\\.')[0]+'.ad'}...")
+        new File(doc.name.split('\\.')[0] + '.ad').withWriter("UTF-8") { out ->
             asciidoc.eachLine { line ->
                 out.writeLine(line)
             }
