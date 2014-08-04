@@ -34,7 +34,7 @@ class Section {
         if (attrs['xml:id'] != null) {
             results += "[[${attrs['xml:id']}]]\n"
         } else if (attrs['title'] != null) {
-            if (attrs['title'].attrs['xml:base'] != [null]) {
+            if (!attrs['title'].attrs['xml:base'].join("").contains("null")) {
                 results += "[[${attrs['title'].attrs['xml:base'].join('')}]]\n"
             } else if (attrs['title'].attrs['xml:id'] != [null]) {
                 results += "[[${attrs['title'].attrs['xml:id'].join('')}]]\n"
@@ -110,6 +110,14 @@ class Paragraph {
     }
 }
 
+class Note {
+    def content
+    
+    String render() {
+        def results = "NOTE: ${content.render()}"
+    }
+}
+
 @Log
 class ProgramListing {
     def content
@@ -169,7 +177,7 @@ class Docbook5Handler extends DefaultHandler {
     void startElement(String ns, String localName, String qName, Attributes attrs) {
         def extractedAttrs = extractAllAttrs(attrs)
         log.info("startElement: ${qName} has attrs ${extractedAttrs}")
-        if (qName == "book") {
+        if (["book", "partintro"].contains(qName)) {
             qNameStack.push(new Chunk([qName:qName, attrs:extractedAttrs]))
             rootSection = new Section([qName:qName, attrs:extractedAttrs, level:1])
             sectionStack.push(rootSection)
@@ -181,7 +189,7 @@ class Docbook5Handler extends DefaultHandler {
             sectionStack.push(rootSection)
             log.info("PUSH ${qName}: Top of qNameStack is now ${qNameStack[-1]}")
             log.info("PUSH ${qName}: Top of sectionStack is now ${sectionStack[-1]}")
-        } else if (["legalnotice", "section", "simplesect", "para", "programlisting", "itemizedlist", "listitem", "part"].contains(qName)) {        
+        } else if (["legalnotice", "section", "simplesect", "para", "programlisting", "itemizedlist", "listitem", "part", "example", "note"].contains(qName)) {        
             qNameStack.push(new Chunk([qName:qName, attrs:extractedAttrs]))
             sectionStack.push(new Section([qName:qName, level:sectionStack[-1].level+1]))
             log.info("PUSH ${qName}: Top of qNameStack is now ${qNameStack[-1]}")
@@ -212,7 +220,7 @@ class Docbook5Handler extends DefaultHandler {
         log.info("POP ${qName}: Top of sectionStack = ${sectionStack[-1]}")
         if (["book", "chapter", "preface", "partintro"].contains(qName)) {
             // nothing
-        } else if (["legalnotice", "section", "simplesect", "para", "programlisting", "itemizedlist", "listitem", "part"].contains(qName)) {
+        } else if (["legalnotice", "section", "simplesect", "para", "programlisting", "itemizedlist", "listitem", "part", "example", "note"].contains(qName)) {
             def section = sectionStack.pop()
             if (qName == "legalnotice") {
                 log.info("POP ${qName}: item:${item}")
@@ -220,7 +228,7 @@ class Docbook5Handler extends DefaultHandler {
             } else if (qName == "para") {
                 sectionStack[-1].chunks += new Paragraph([content:item.content])
                 sectionStack[-1].chunks += section.chunks
-            } else if (["section", "simplesect", "part"].contains(qName)) {
+            } else if (["section", "simplesect", "part", "example"].contains(qName)) {
                 section.attrs += item.attrs
                 sectionStack[-1].chunks += section                
                 log.info("POP section: Pulled off ${section} and appended it to ${sectionStack[-1].attrs['title']}")
@@ -231,6 +239,8 @@ class Docbook5Handler extends DefaultHandler {
             } else if (qName == "listitem") {
                 log.info("POP ${qName}: ${section}")
                 sectionStack[-1].chunks += section.chunks.join("")
+            } else if (qName == "note") {
+                sectionStack[-1].chunks += new Note([content:section])
             } else if (qName == "itemizedlist") {
                 section.chunks.each {
                     log.info("POP ${qName}: ${it}")
@@ -253,10 +263,14 @@ class Docbook5Handler extends DefaultHandler {
             log.info("POP ${qName}: ${sectionStack[-1]}")
             log.info("POP ${qName}: ${qNameStack[-1].content}")
             qNameStack[-1].content += "`${item.content}`"
-        } else if (qName == "link") {
+        } else if (['link', 'xref'].contains(qName)) {
             log.info("POP ${qName}: attrs is ${item.attrs}")
             if (item.attrs['linkend'] != null) {
-                qNameStack[-1].content += "<<${item.attrs['linkend']},${item.content}>>"
+                if (item.content != "") {
+                    qNameStack[-1].content += "<<${item.attrs['linkend']},${item.content}>>"
+                } else {
+                    qNameStack[-1].content += "<<${item.attrs['linkend']}>>"                
+                }
             }
             if (item.attrs['xlink:href'] != null) {
                 qNameStack[-1].content += "${item.attrs['xlink:href']}[${item.content}]"
@@ -264,6 +278,10 @@ class Docbook5Handler extends DefaultHandler {
         } else if (qName == "ulink") {
             if (item.attrs['url'] != null) {
                 qNameStack[-1].content += "${item.attrs['url'].replace('https://spring.io', 'http://spring.io')}[${item.content}]"
+            }
+        } else if (qName == "imagedata") {
+            if (item.attrs['fileref'] != null) {
+                sectionStack[-1].chunks += "image::${item.attrs['fileref']}[]"
             }
         } else if (sectionStack[-1].attrs[item.qName] == null) {
             sectionStack[-1].attrs[item.qName] = [item]
