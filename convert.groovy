@@ -55,6 +55,7 @@ class Section {
         if (attrs['toc'] != null) {
             results += ":toc:\n"
             results += ":toclevels: 4\n"
+            results += ":source-highlighter: prettify\n"
         }
         if (attrs['legalnotice'] != null) {
             results += ":legalnotice: ${attrs['legalnotice'].chunks.join(" ")}\n"        
@@ -98,11 +99,18 @@ class Paragraph {
     }
 }
 
+@Log
 class ProgramListing {
     def content
+    def attrs
     
     String render() {
-        "[source]\n----\n${content}\n----\n"
+        log.info("+++ ${attrs}")
+        if (attrs['language'] != null) {
+            "[source,${attrs['language']}]\n----\n${content}\n----\n"
+        } else {
+            "[source]\n----\n${content}\n----\n"
+        }
     }
     
     String toString() {
@@ -208,7 +216,7 @@ class Docbook5Handler extends DefaultHandler {
                 sectionStack[-1].chunks += section                
                 log.info("POP section: Pulled off ${section} and appended it to ${sectionStack[-1].attrs['title']}")
             } else if (qName == "programlisting") {
-                sectionStack[-1].chunks += new ProgramListing([content:item.content])
+                sectionStack[-1].chunks += new ProgramListing([content:item.content, attrs:item.attrs])
                 log.info("POP section: Pulled off ${section} and appended it to ${sectionStack[-1].attrs['title']}")
                 log.info("POP section: Top of sectionStack now looks like ${sectionStack[-1]}")
             } else if (qName == "listitem") {
