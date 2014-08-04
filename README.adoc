@@ -1,0 +1,17 @@
+== Convert docbook to asciidoctor
+
+This script uses Spring Boot CLI to convert an existing set of docbook manuals to asciidoctor.
+
+To run:
+
+----
+$ spring run docbook2asciidoctor.groovy <file1.xml> <file2.xml> <file3.xml>
+----
+
+It will print out a lot of debug information, but the above command will eventually produce:
+
+* file1.ad
+* file2.ad
+* file3.ad
+
+The target folder will be your current path.
