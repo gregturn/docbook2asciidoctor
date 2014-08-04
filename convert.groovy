@@ -83,7 +83,7 @@ class Include {
     }
     
     String toString() {
-        "include::${chunk.attrs['href']-'xml'+'ad'}[]"
+        "include::${chunk.attrs['href']-'xml'+'adoc'}[]"
     }
 }
 
@@ -272,8 +272,8 @@ class Docbook5Handler extends DefaultHandler {
         asciidoc.eachLine { line ->
             log.info(line)
         }
-        log.info("Creating ${doc.name.split('\\.')[0]+'.ad'}...")
-        new File(doc.name.split('\\.')[0] + '.ad').withWriter("UTF-8") { out ->
+        log.info("Creating ${doc.name.split('\\.')[0]+'.adoc'}...")
+        new File(doc.name.split('\\.')[0] + '.adoc').withWriter("UTF-8") { out ->
             asciidoc.eachLine { line ->
                 out.writeLine(line)
             }
