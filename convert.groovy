@@ -263,7 +263,7 @@ class Docbook5Handler extends DefaultHandler {
             }
         } else if (qName == "ulink") {
             if (item.attrs['url'] != null) {
-                qNameStack[-1].content += "${item.attrs['url']}[${item.content}]"
+                qNameStack[-1].content += "${item.attrs['url'].replace('https://spring.io', 'http://spring.io')}[${item.content}]"
             }
         } else if (sectionStack[-1].attrs[item.qName] == null) {
             sectionStack[-1].attrs[item.qName] = [item]
