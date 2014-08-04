@@ -41,6 +41,11 @@ class Section {
             }
         }
         
+        if (attrs['id'] != null) {
+            log.info("+++ ${attrs['id']}")
+            results += "[${attrs['id']}]\n"
+        }
+        
         results += "${'='*level} ${attrs['title'].content.join(" ")}\n"
         
         if (attrs['author'] != null) {
@@ -84,7 +89,11 @@ class Include {
     }
     
     String toString() {
-        "include::${chunk.attrs['href']-'xml'+'ad'}[]"
+        def revised = chunk.attrs['href']-'xml'+'ad'
+        revised = revised.replace('/src/docbkx', '/src/main/asciidoc')
+        revised = revised.replace('raw.github.com', 'raw.githubusercontent.com')
+        revised = revised.replace('1.9.0.M1', 'issue/DATACMNS-551')
+        "include::${revised}[]\n"
     }
 }
 
@@ -165,13 +174,13 @@ class Docbook5Handler extends DefaultHandler {
             sectionStack.push(rootSection)
             log.info("PUSH ${qName}: Top of qNameStack is now ${qNameStack[-1]}")
             log.info("PUSH ${qName}: Top of sectionStack is now ${sectionStack[-1]}")
-        } else if (qName == "chapter") {
+        } else if (["chapter", "preface"].contains(qName)) {
             qNameStack.push(new Chunk([qName:qName, attrs:extractedAttrs]))
             rootSection = new Section([qName:qName, attrs:extractedAttrs, level:2])
             sectionStack.push(rootSection)
             log.info("PUSH ${qName}: Top of qNameStack is now ${qNameStack[-1]}")
             log.info("PUSH ${qName}: Top of sectionStack is now ${sectionStack[-1]}")
-        } else if (["legalnotice", "section", "simplesect", "para", "programlisting", "itemizedlist", "listitem"].contains(qName)) {        
+        } else if (["legalnotice", "section", "simplesect", "para", "programlisting", "itemizedlist", "listitem", "part"].contains(qName)) {        
             qNameStack.push(new Chunk([qName:qName, attrs:extractedAttrs]))
             sectionStack.push(new Section([qName:qName, level:sectionStack[-1].level+1]))
             log.info("PUSH ${qName}: Top of qNameStack is now ${qNameStack[-1]}")
@@ -203,9 +212,9 @@ class Docbook5Handler extends DefaultHandler {
             log.info("POP ${qName}: Top of qNameStack is now ${qNameStack[-1]}")
         }
         log.info("POP ${qName}: Top of sectionStack = ${sectionStack[-1]}")
-        if (["book", "chapter"].contains(qName)) {
+        if (["book", "chapter", "preface"].contains(qName)) {
             // nothing
-        } else if (["legalnotice", "section", "simplesect", "para", "programlisting", "itemizedlist", "listitem"].contains(qName)) {
+        } else if (["legalnotice", "section", "simplesect", "para", "programlisting", "itemizedlist", "listitem", "part"].contains(qName)) {
             def section = sectionStack.pop()
             if (qName == "legalnotice") {
                 log.info("POP ${qName}: item:${item}")
@@ -213,7 +222,7 @@ class Docbook5Handler extends DefaultHandler {
             } else if (qName == "para") {
                 sectionStack[-1].chunks += new Paragraph([content:item.content])
                 sectionStack[-1].chunks += section.chunks
-            } else if (["section", "simplesect"].contains(qName)) {
+            } else if (["section", "simplesect", "part"].contains(qName)) {
                 section.attrs += item.attrs
                 sectionStack[-1].chunks += section                
                 log.info("POP section: Pulled off ${section} and appended it to ${sectionStack[-1].attrs['title']}")
