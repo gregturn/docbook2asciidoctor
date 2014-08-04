@@ -2,6 +2,10 @@ import javax.xml.parsers.SAXParserFactory
 import org.xml.sax.helpers.DefaultHandler
 import org.xml.sax.*
 
+class State {
+    static def lastLevel = 0
+}
+
 class Chunk {
     def qName = ""
     def content = "" // put characters() stuff
@@ -46,7 +50,20 @@ class Section {
         }
 
         if (attrs['title'] != null) {
-            results += "${'='*level} ${attrs['title'].content.join(" ")}\n"
+            // If current level is no more than one level away from the last level,
+            // go ahead and render
+            if ((level-State.lastLevel).abs() <= 1) {
+                State.lastLevel = level
+            } else {
+                // Otherwise, autocorrect for the chance that too many levels were
+                // embedded in your docbook source
+                if (level > State.lastLevel) {
+                    State.lastLevel += 1
+                } else {
+                    State.lastLevel -= 1
+                }
+            }
+            results += "${'='*State.lastLevel} ${attrs['title'].content.join(" ")}\n"            
         }
         
         if (attrs['author'] != null) {
@@ -259,7 +276,7 @@ class Docbook5Handler extends DefaultHandler {
             // drop
         } else if (qName == "xi:include") {
             sectionStack[-1].chunks += new Include([chunk:item])
-        } else if (['code', 'interfacename', 'uri', 'methodname', 'classname'].contains(qName)) {
+        } else if (['code', 'interfacename', 'uri', 'methodname', 'classname', 'literal'].contains(qName)) {
             log.info("POP ${qName}: ${sectionStack[-1]}")
             log.info("POP ${qName}: ${qNameStack[-1].content}")
             qNameStack[-1].content += "`${item.content}`"
