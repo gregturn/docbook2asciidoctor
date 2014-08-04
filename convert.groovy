@@ -131,7 +131,7 @@ class Note {
     def content
     
     String render() {
-        def results = "NOTE: ${content.render()}"
+        def results = "NOTE: ${content.render().trim()}\n"
     }
 }
 
@@ -300,6 +300,8 @@ class Docbook5Handler extends DefaultHandler {
             if (item.attrs['fileref'] != null) {
                 sectionStack[-1].chunks += "image::${item.attrs['fileref']}[]"
             }
+        } else if (qName == "emphasis") {
+            qNameStack[-1].content += "*${item.content}*"
         } else if (sectionStack[-1].attrs[item.qName] == null) {
             sectionStack[-1].attrs[item.qName] = [item]
             log.info("POP ${qName}: Added ${item.qName}/${item.content} to ${sectionStack[-1]}")
