@@ -69,12 +69,6 @@ class Section {
         if (attrs['author'] != null) {
             results += attrs['author'].join(", ") + "\n"
         }
-        if (attrs['year'] != null) {
-            results += ":year: ${attrs['year'].content.join(" ")}\n"
-        }
-        if (attrs['releaseinfo'] != null) {
-            results += ":releaseinfo: ${attrs['releaseinfo'].content.join(" ")}\n"
-        }
         if (attrs['toc'] != null) {
             results += ":toc:\n"
             results += ":toclevels: 4\n"
@@ -82,11 +76,10 @@ class Section {
             results += ":idprefix:\n"
         }
         if (attrs['legalnotice'] != null) {
-            results += ":legalnotice: ${attrs['legalnotice'].chunks.join(" ")}\n\n"
             results += ":spring_data_commons: https://raw.githubusercontent.com/spring-projects/spring-data-commons/issue/DATACMNS-551/src/main/asciidoc\n"
-            results += "*{version}*\n\n"
-            results += "Copyright (C) {year} Original authors\n\n"
-            results += "NOTE: _{legalnotice}_\n\n"
+            results += "{version}\n\n"
+            results += "(C) ${attrs['year'].content.join(" ")} Original authors\n\n"
+            results += "NOTE: _${attrs['legalnotice'].chunks.join(' ')}_\n\n"
         }
         
         results += "\n"
