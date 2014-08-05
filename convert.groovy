@@ -82,7 +82,11 @@ class Section {
             results += ":idprefix:\n"
         }
         if (attrs['legalnotice'] != null) {
-            results += ":legalnotice: ${attrs['legalnotice'].chunks.join(" ")}\n"        
+            results += ":legalnotice: ${attrs['legalnotice'].chunks.join(" ")}\n\n"
+            results += ":spring_data_commons: https://raw.githubusercontent.com/spring-projects/spring-data-commons/issue/DATACMNS-551/src/main/asciidoc\n"
+            results += "*{version}*\n\n"
+            results += "Copyright (C) {year} Original authors\n\n"
+            results += "NOTE: _{legalnotice}_\n\n"
         }
         
         results += "\n"
@@ -111,6 +115,7 @@ class Include {
         revised = revised.replace('/src/docbkx', '/src/main/asciidoc')
         revised = revised.replace('raw.github.com', 'raw.githubusercontent.com')
         revised = revised.replace('1.9.0.M1', 'issue/DATACMNS-551')
+        revised = revised.replace ('https://raw.githubusercontent.com/spring-projects/spring-data-commons/issue/DATACMNS-551/src/main/asciidoc', '{spring_data-commons}')
         "include::${revised}[]\n"
     }
 }
@@ -202,7 +207,7 @@ class Docbook5Handler extends DefaultHandler {
             log.info("PUSH ${qName}: Top of sectionStack is now ${sectionStack[-1]}")
         } else if (["chapter", "preface", "partintro"].contains(qName)) {
             qNameStack.push(new Chunk([qName:qName, attrs:extractedAttrs]))
-            rootSection = new Section([qName:qName, attrs:extractedAttrs, level:2])
+            rootSection = new Section([qName:qName, attrs:extractedAttrs, level:1])
             sectionStack.push(rootSection)
             log.info("PUSH ${qName}: Top of qNameStack is now ${qNameStack[-1]}")
             log.info("PUSH ${qName}: Top of sectionStack is now ${sectionStack[-1]}")
