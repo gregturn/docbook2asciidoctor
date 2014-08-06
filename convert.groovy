@@ -71,8 +71,6 @@ class Section {
         }
         if (attrs['toc'] != null) {
             results += ":toc:\n"
-            results += ":toclevels: 4\n"
-            results += ":source-highlighter: prettify\n"
             results += ":idprefix:\n"
         }
         if (attrs['legalnotice'] != null) {
