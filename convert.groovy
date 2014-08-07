@@ -275,9 +275,17 @@ class ItemizedList {
 
 class Include {
     def section
+    def spring_data_commons_path = "https://raw.github.com/SpringSource/spring-data-commons/1.9.0.M1/src/docbkx"
     
     String render() { 
-        "include::${section.attrs['href']-'xml'+'adoc'}[]\n"
+        if (section.attrs['href'].contains(spring_data_commons_path)) {
+            def results = "include::{spring-data-commons-docs}/${section.attrs['href']-spring_data_commons_path-'xml'+'adoc'}[]\n"
+            results += "// Put the following line at the top...\n"
+            results += ":spring-data-commons-docs: https://raw.githubusercontent.com/spring-projects/spring-data-commons/issue/DATACMNS-551/src/main/asciidoc\n"
+            results
+        } else {
+            "include::${section.attrs['href']-'xml'+'adoc'}[]\n"
+        }
     }
     
     String toString() { "Include ${section}"}
@@ -390,7 +398,7 @@ class Docbook5Handler extends DefaultHandler {
                 sectionStack[-1].chunks += new Paragraph([section:section])
             } else if (["classname", "code", "literal", "interfacename","methodname"].contains(qName)) {
                 sectionStack[-1].chunks += new Monospaced([section:section])
-            } else if (["section", "example", "part", "partintro", "simpara"].contains(qName)) {
+            } else if (["section", "example", "part", "partintro", "simpara", "abstract", "simplesect"].contains(qName)) {
                 sectionStack[-1].chunks += section
             } else if (qName == "ulink") {
                 sectionStack[-1].chunks += new Ulink([section:section])
@@ -432,7 +440,7 @@ class Docbook5Handler extends DefaultHandler {
                 sectionStack[-1].chunks += new Author([section:section])
             } else if (qName == "authorgroup") {
                 sectionStack[-1].chunks += new AuthorGroup([section:section])
-            } else if (["releaseinfo", "date", "legalnotice", "bookinfo", "toc", "titleabbrev", "productname", "affiliation", "year", "copyright", "holder"].contains(qName)) {
+            } else if (["releaseinfo", "date", "legalnotice", "bookinfo", "toc", "titleabbrev", "productname", "affiliation", "year", "copyright", "holder", "xi:fallback"].contains(qName)) {
                 // ignore
             } else if(["lineannotation"].contains(qName)) {
                 sectionStack[-1].chunks += new PlainText([section:section])
