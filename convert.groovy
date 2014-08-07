@@ -2,174 +2,309 @@ import javax.xml.parsers.SAXParserFactory
 import org.xml.sax.helpers.DefaultHandler
 import org.xml.sax.*
 
-class State {
-    static def lastLevel = 0
-}
-
-class Chunk {
-    def qName = ""
-    def content = "" // put characters() stuff
-    def data // put anything else
-    def attrs
-    String toString() {
-        if (data != null) {
-            "qName:${qName} data:${data} content:${content} attrs:${attrs}"
-        } else {
-            "qName:${qName} content: ${content} attrs:${attrs}"
-        }
-    }
+class C {
 }
 
 @Log
 class Section {
-    def qName, level, chunks=[], attrs=[:]
-    
-    String toString() {
-        def results = "Section> qName:${qName} chunks:${chunks} level:${level}"
-        attrs.each { key,value ->
-            results += "\n${key} => ${value}"
-        }
-        results
-    }
+    def qName, attrs, level, chunks=[]
     
     String render() {
         def results = ""
-        
-        if (attrs['xml:id'] != null) {
-            results += "[[${attrs['xml:id']}]]\n"
-        } else if (attrs['title'] != null) {
-            if (!attrs['title'].attrs['xml:base'].join("").contains("null")) {
-                results += "[[${attrs['title'].attrs['xml:base'].join('')}]]\n"
-            } else if (attrs['title'].attrs['xml:id'] != [null]) {
-                results += "[[${attrs['title'].attrs['xml:id'].join('')}]]\n"
-            }
-        }
-        
         if (attrs['id'] != null) {
             results += "[[${attrs['id']}]]\n"
+        } else if (attrs['xml:id'] != null) {
+            results += "[[${attrs['xml:id']}]]\n"
         }
-
-        if (attrs['title'] != null) {
-            // If current level is no more than one level away from the last level,
-            // go ahead and render
-            if ((level-State.lastLevel).abs() <= 1) {
-                State.lastLevel = level
-            } else {
-                // Otherwise, autocorrect for the chance that too many levels were
-                // embedded in your docbook source
-                if (level > State.lastLevel) {
-                    State.lastLevel += 1
-                } else {
-                    State.lastLevel -= 1
-                }
-            }
-            results += "${'='*State.lastLevel} ${attrs['title'].content.join(" ")}\n"            
-        }
-        
-        if (attrs['author'] != null) {
-            results += attrs['author'].join(", ") + "\n"
-        }
-        if (attrs['toc'] != null) {
-            results += ":toc:\n"
-            results += ":idprefix:\n"
-        }
-        if (attrs['legalnotice'] != null) {
-            results += ":spring_data_commons: https://raw.githubusercontent.com/spring-projects/spring-data-commons/issue/DATACMNS-551/src/main/asciidoc\n"
-            results += "{version}\n\n"
-            results += "(C) ${attrs['year'].content.join(" ")} Original authors\n\n"
-            results += "NOTE: _${attrs['legalnotice'].chunks.join(' ')}_\n\n"
-        }
-        
-        results += "\n"
-        
         chunks.each { chunk ->
             if (chunk.metaClass.respondsTo(chunk, "render")) {
-                results += chunk.render() + "\n"
+                results += chunk.render()
             } else {
-                results += chunk + "\n"
+                log.info("Not sure how to handle ${chunk}")
             }
         }
-        
         results
+    }
+    
+    def stripped() {
+        chunks.collect { chunk ->
+            if (chunk.metaClass.respondsTo(chunk, "render")) {
+                chunk.render()
+            } else {
+                chunk.replaceAll('\\s+', ' ')
+            }
+        }.join('').trim()    
+    }
+    
+    
+    String toString() {
+        "Section qName:${qName} level:${level}, chunks:${chunks} attrs:${attrs}"
     }
 }
 
-class Include {
-    def chunk
+class Title {
+    def section, level
     
     String render() {
-        "${toString()}"
+        def results = "${'='*level} ${section.chunks.join('')}"
+        if (section.attrs['subtitle'] != null) {
+            results += "\n\n*_${section.attrs['subtitle'].stripped()}_*"
+        }
+        results += "\n\n"
     }
     
     String toString() {
-        def revised = chunk.attrs['href']-'xml'+'ad'
-        revised = revised.replace('/src/docbkx', '/src/main/asciidoc')
-        revised = revised.replace('raw.github.com', 'raw.githubusercontent.com')
-        revised = revised.replace('1.9.0.M1', 'issue/DATACMNS-551')
-        revised = revised.replace ('https://raw.githubusercontent.com/spring-projects/spring-data-commons/issue/DATACMNS-551/src/main/asciidoc', '{spring_data-commons}')
-        "include::${revised}[]\n"
+        "Title: ${'='*level} ${section.chunks}"
+    }
+}
+
+class ProgramListing {
+    def section
+    
+    String render() {
+        def results = ""
+        if (section.attrs['lang'] != null) {
+            results += "[source,${section.attrs['lang']}]\n"
+        } else if (section.attrs['language'] != null) {
+            results += "[source,${section.attrs['language']}]\n"
+        } else {
+            results += "[source]\n"
+        }
+        results += "----\n"
+        results += "${section.chunks.join('').trim()}\n"
+        results += "----\n\n"
+        results
+    }
+    
+    String toString() {
+        "ProgramListing: chunks:${section.chunks} lang:${section.attrs['lang']}"
     }
 }
 
 class Paragraph {
-    def content
+    def section
     
     String render() {
-        "${content}\n\n"
+        "${section.stripped()}\n\n"
     }
     
     String toString() {
-        render()
+        "Paragraph: chunks:${section.chunks}"
     }
+}
+
+class Monospaced {
+    def section
+    
+    String render() {
+        "`${section.chunks.join('')}`"
+    }
+    
+    String toString() {
+        "Monospaced (${section.chunks})"
+    }
+}
+
+class Ulink {
+    def section
+    
+    String render() {
+        if (section.chunks.size() > 0) {
+            "${section.attrs['url']}[${section.stripped()}]"
+        }
+    }
+    
+    String toString() { "Ulink (${section})"}
+}
+
+class Xref {
+    def section
+    
+    String render() {
+        if (section.chunks.size() > 0) {
+            "<<${section.attrs['linked']},${section.stripped()}>>"
+        } else {
+            "<<${section.attrs['linkend']}>>"
+        }
+    }
+    
+    String toString() { "Xref (${section})"}
+}
+
+class Emphasis {
+    def section
+    
+    String render() {
+        "*${section.chunks.join('')}*"
+    }
+    
+    String toString() { "Bold ${section}"}
 }
 
 class Note {
-    def content
+    def section
     
     String render() {
-        def results = "NOTE: ${content.render().trim()}\n"
+        "NOTE: ${section.stripped()}\n\n"
     }
+    
+    String toString() { "Note ${section}"}
 }
 
-@Log
-class ProgramListing {
-    def content
-    def attrs
+class ImageData {
+    def section
     
-    String render() {
-        log.info("${attrs}")
-        if (attrs['language'] != null) {
-            "[source,${attrs['language']}]\n----\n${content}\n----\n"
-        } else {
-            "[source]\n----\n${content}\n----\n"
-        }
+    String render() { 
+        "image::${section.attrs['fileref']}[]\n\n"
     }
     
-    String toString() {
-        render()
-    }
+    String toString() { "ImageData ${section}"}
 }
 
-class BulletList {
-    def content
+class ImageObject {
+    def section
+    
+    String render() { 
+        "${section.chunks[0].render()}"
+    }
+
+    String toString() { "ImageObject ${section}"}
+}
+
+class MediaObject {
+    def section
+    
+    String render() { 
+        "${section.chunks[0].render()}"
+    }
+    
+    String toString() { "MediaObject ${section}"}
+}
+
+class Screenshot {
+    def section
+    
+    String render() { 
+        "${section.chunks[0].render()}"
+    }
+    
+    String toString() { "Screenshot ${section}"}
+}
+
+class Term {
+    def section
+    
+    String render() { 
+        "${section.stripped()}::"
+    }
+    
+    String toString() { "Term ${section}"}
+}
+
+class ListItem {
+    def section
+    
+    String render() { 
+        "${section.stripped()}"
+    }
+    
+    String toString() { "ListItem ${section}"}
+}
+
+class VarListEntry {
+    def section
+    
+    String render() { 
+        "${section.chunks[0].render()}\n${section.chunks[1].render()}\n"
+    }
+    
+    String toString() { "VarListEntry ${section}"}
+}
+
+class VariableList {
+    def section
+    
+    String render() { 
+        "\n\n" + section.chunks.collect { chunk ->
+            chunk.render()
+        }.join("\n")
+    }
+    
+    String toString() { "VariableList ${section}"}
+}
+
+class OrderedList {
+    def section
+    
+    String render() { 
+        section.chunks.collect { chunk ->
+            ". ${chunk.render()}"
+        }.join("\n") + "\n\n"
+    }
+    
+    String toString() { "OrderedList ${section}"}
+}
+
+class ItemizedList {
+    def section
     
     String render() {
-        def results = ""
-        content.each { item ->
-            results += "* ${item}"
-        }
-        results
+        section.chunks.collect { chunk ->
+            "* ${chunk.render()}"
+        }.join("\n") + "\n\n"
     }
+    
+    String toString() { "ItemizedList ${section}"}
+}
+
+class Include {
+    def section
+    
+    String render() { 
+        "include::${section.attrs['href']-'xml'+'adoc'}[]\n"
+    }
+    
+    String toString() { "Include ${section}"}
+}
+
+class Firstname {
+    def section
+    
+    String render() { "+++ ${toString()}"}
+    
+    String toString() { "Firstname ${section}"}
+}
+
+class Surname {
+    def section
+    
+    String render() { "+++ ${toString()}"}
+    
+    String toString() { "Surname ${section}"}
+}
+
+class Author {
+    def section
+    
+    String render() { "+++ ${toString()}"}
+    
+    String toString() { "Author ${section}"}
+}
+
+class AuthorGroup {
+    def section
+    
+    String render() { "+++ ${toString()}"}
+    
+    String toString() { "AuthorGroup ${section}"}
 }
 
 @Log
 class Docbook5Handler extends DefaultHandler {
 
     File doc    
-    def qNameStack = []
     def sectionStack = []
     def asciidoc = ""
-    def level = 0
     def rootSection
     
     Docbook5Handler() {
@@ -190,120 +325,85 @@ class Docbook5Handler extends DefaultHandler {
     void startElement(String ns, String localName, String qName, Attributes attrs) {
         def extractedAttrs = extractAllAttrs(attrs)
         log.info("startElement: ${qName} has attrs ${extractedAttrs}")
-        if (["book", "partintro"].contains(qName)) {
-            qNameStack.push(new Chunk([qName:qName, attrs:extractedAttrs]))
-            rootSection = new Section([qName:qName, attrs:extractedAttrs, level:1])
-            sectionStack.push(rootSection)
-            log.info("PUSH ${qName}: Top of qNameStack is now ${qNameStack[-1]}")
-            log.info("PUSH ${qName}: Top of sectionStack is now ${sectionStack[-1]}")
-        } else if (["chapter", "preface", "partintro"].contains(qName)) {
-            qNameStack.push(new Chunk([qName:qName, attrs:extractedAttrs]))
-            rootSection = new Section([qName:qName, attrs:extractedAttrs, level:1])
-            sectionStack.push(rootSection)
-            log.info("PUSH ${qName}: Top of qNameStack is now ${qNameStack[-1]}")
-            log.info("PUSH ${qName}: Top of sectionStack is now ${sectionStack[-1]}")
-        } else if (["legalnotice", "section", "simplesect", "para", "programlisting", "itemizedlist", "listitem", "part", "example", "note"].contains(qName)) {        
-            qNameStack.push(new Chunk([qName:qName, attrs:extractedAttrs]))
-            sectionStack.push(new Section([qName:qName, level:sectionStack[-1].level+1]))
-            log.info("PUSH ${qName}: Top of qNameStack is now ${qNameStack[-1]}")
-            log.info("PUSH ${qName}: Top of sectionStack is now ${sectionStack[-1]}")
+        if (sectionStack.size() == 0) {
+            sectionStack.push(new Section([qName:qName, attrs:extractedAttrs, level:1]))
+            log.info("PUSH ${qName}: Creating level 1 section")
         } else {
-            qNameStack.push(new Chunk([qName:qName, attrs:extractedAttrs]))
-            log.info("PUSH ${qName}: Top of qNameStack is now ${qNameStack[-1]}")
+            sectionStack.push(new Section([qName:qName, attrs:extractedAttrs, 
+                level:sectionStack[-1].level+1]))
+            log.info("PUSH ${qName}: Creating level ${sectionStack[-1].level} section")
         }
     }
     
     void characters(char[] chars, int offset, int length) {
-        if (qNameStack.size() > 0) {
-            if (qNameStack[-1].qName != "programlisting") {
-                qNameStack[-1].content += strip(new String(chars, offset, length))
-            } else {
-                qNameStack[-1].content += new String(chars, offset, length)
-            }
-            //log.info("${qNameStack[-1]}")
-        }
+        sectionStack[-1].chunks += new String(chars, offset, length)
     }
     
     void endElement(String ns, String localName, String qName) {
-        def item = qNameStack.pop()
-        log.info("POP ${qName}: Popped ${item}")
-        if (qNameStack.size() > 0) {
-            log.info("POP ${qName}: Top of qNameStack is now ${qNameStack[-1]}")
-        }
-        log.info("POP ${qName}: Top of sectionStack = ${sectionStack[-1]}")
-        if (["book", "chapter", "preface", "partintro"].contains(qName)) {
-            // nothing
-        } else if (["legalnotice", "section", "simplesect", "para", "programlisting", "itemizedlist", "listitem", "part", "example", "note"].contains(qName)) {
-            def section = sectionStack.pop()
-            if (qName == "legalnotice") {
-                log.info("POP ${qName}: item:${item}")
-                sectionStack[-1].attrs[qName] = section  
-            } else if (qName == "para") {
-                sectionStack[-1].chunks += new Paragraph([content:item.content])
-                sectionStack[-1].chunks += section.chunks
-            } else if (["section", "simplesect", "part", "example"].contains(qName)) {
-                section.attrs += item.attrs
-                sectionStack[-1].chunks += section                
-                log.info("POP section: Pulled off ${section} and appended it to ${sectionStack[-1].attrs['title']}")
-            } else if (qName == "programlisting") {
-                sectionStack[-1].chunks += new ProgramListing([content:item.content, attrs:item.attrs])
-                log.info("POP section: Pulled off ${section} and appended it to ${sectionStack[-1].attrs['title']}")
-                log.info("POP section: Top of sectionStack now looks like ${sectionStack[-1]}")
-            } else if (qName == "listitem") {
-                log.info("POP ${qName}: ${section}")
-                sectionStack[-1].chunks += section.chunks.join("")
-            } else if (qName == "note") {
-                sectionStack[-1].chunks += new Note([content:section])
-            } else if (qName == "itemizedlist") {
-                section.chunks.each {
-                    log.info("POP ${qName}: ${it}")
-                }
-                sectionStack[-1].chunks += new BulletList([content:section.chunks])
-            }
-        } else if (item.qName == "firstname") {
-            if (sectionStack[-1].attrs["author"] == null) {
-                sectionStack[-1].attrs["author"] = [item.content]
-            } else {
-                sectionStack[-1].attrs["author"] += item.content
-            }
-        } else if (qName == "surname") {
-            sectionStack[-1].attrs["author"][-1] += " ${item.content}"
-        } else if (["authorgroup", "personname", "author"].contains(qName)) {
-            // drop
-        } else if (qName == "xi:include") {
-            sectionStack[-1].chunks += new Include([chunk:item])
-        } else if (['code', 'interfacename', 'uri', 'methodname', 'classname', 'literal'].contains(qName)) {
-            log.info("POP ${qName}: ${sectionStack[-1]}")
-            log.info("POP ${qName}: ${qNameStack[-1].content}")
-            qNameStack[-1].content += "`${item.content}`"
-        } else if (['link', 'xref'].contains(qName)) {
-            log.info("POP ${qName}: attrs is ${item.attrs}")
-            if (item.attrs['linkend'] != null) {
-                if (item.content != "") {
-                    qNameStack[-1].content += "<<${item.attrs['linkend']},${item.content}>>"
-                } else {
-                    qNameStack[-1].content += "<<${item.attrs['linkend']}>>"                
-                }
-            }
-            if (item.attrs['xlink:href'] != null) {
-                qNameStack[-1].content += "${item.attrs['xlink:href']}[${item.content}]"
-            }
-        } else if (qName == "ulink") {
-            if (item.attrs['url'] != null) {
-                qNameStack[-1].content += "${item.attrs['url'].replace('https://spring.io', 'http://spring.io')}[${item.content}]"
-            }
-        } else if (qName == "imagedata") {
-            if (item.attrs['fileref'] != null) {
-                sectionStack[-1].chunks += "image::${item.attrs['fileref']}[]"
-            }
-        } else if (qName == "emphasis") {
-            qNameStack[-1].content += "*${item.content}*"
-        } else if (sectionStack[-1].attrs[item.qName] == null) {
-            sectionStack[-1].attrs[item.qName] = [item]
-            log.info("POP ${qName}: Added ${item.qName}/${item.content} to ${sectionStack[-1]}")
+        def section = sectionStack.pop()
+        log.info("POP ${qName}: ${section}")
+        if (sectionStack.size() == 0) {
+            rootSection = section
         } else {
-            sectionStack[-1].attrs[item.qName] += item
-            log.info("POP ${qName}: Added ${item.qName}/${item.content} to ${sectionStack[-1]}")
+            if (qName == "title") {
+                sectionStack[-1].chunks += new Title([section:section, level:sectionStack[-1].level])
+            } else if (qName == "subtitle") {
+                // Find existing title and add attrs['subtitle']
+                def title = sectionStack[-1].chunks.find{it.section.qName == 'title'}
+                title.section.attrs['subtitle'] = section
+                log.info("${title} updated with subtitle")
+            } else if (qName == "programlisting") {
+                sectionStack[-1].chunks += new ProgramListing([section:section])
+            } else if (qName == "para") {
+                sectionStack[-1].chunks += new Paragraph([section:section])
+            } else if (["classname", "code"].contains(qName)) {
+                sectionStack[-1].chunks += new Monospaced([section:section])
+            } else if (["section", "example", "part", "partintro", "simpara"].contains(qName)) {
+                sectionStack[-1].chunks += section
+            } else if (qName == "ulink") {
+                sectionStack[-1].chunks += new Ulink([section:section])
+            } else if (qName == "xref") {
+                sectionStack[-1].chunks += new Xref([section:section])
+            } else if (qName == "emphasis") {
+                sectionStack[-1].chunks += new Emphasis([section:section])
+            } else if (qName == "note") {
+                sectionStack[-1].chunks += new Note([section:section])
+            } else if (qName == "imagedata") {
+                sectionStack[-1].chunks += new ImageData([section:section])
+            } else if (qName == "imageobject") {
+                sectionStack[-1].chunks += new ImageObject([section:section])
+            } else if (qName == "mediaobject") {
+                sectionStack[-1].chunks += new MediaObject([section:section])
+            } else if (qName == "screenshot") {
+                sectionStack[-1].chunks += new Screenshot([section:section])
+            } else if (qName == "term") {
+                sectionStack[-1].chunks += new Term([section:section])
+            } else if (qName == "listitem") {
+                sectionStack[-1].chunks += new ListItem([section:section])
+            } else if (qName == "varlistentry") {
+                sectionStack[-1].chunks += new VarListEntry([section:section])
+            } else if (qName == "variablelist") {
+                sectionStack[-1].chunks += new VariableList([section:section])
+            } else if (qName == "orderedlist") {
+                sectionStack[-1].chunks += new OrderedList([section:section])
+            } else if (qName == "itemizedlist") {
+                sectionStack[-1].chunks += new ItemizedList([section:section])
+            } else if (qName == "xi:include") {
+                sectionStack[-1].chunks += new Include([section:section])
+            } else if (qName == "firstname") {
+                sectionStack[-1].chunks += new Firstname([section:section])
+            } else if (qName == "surname") {
+                sectionStack[-1].chunks += new Surname([section:section])
+            } else if (qName == "author") {
+                sectionStack[-1].chunks += new Author([section:section])
+            } else if (qName == "authorgroup") {
+                sectionStack[-1].chunks += new AuthorGroup([section:section])
+            } else if (["releaseinfo", "date", "legalnotice", "bookinfo", "toc"].contains(qName)) {
+                // ignore
+            } else {
+                throw new RuntimeException("Cannot parse ${qName}")
+            }
+            log.info("POP ${qName}: Top of sectionStack is now ${sectionStack[-1]}")
         }
     }
     
@@ -318,8 +418,8 @@ class Docbook5Handler extends DefaultHandler {
         asciidoc.eachLine { line ->
             log.info(line)
         }
-        log.info("Creating ${doc.name.split('\\.')[0]+'.ad'}...")
-        new File(doc.name.split('\\.')[0] + '.ad').withWriter("UTF-8") { out ->
+        log.info("Creating ${doc.name.split('\\.')[0]+'.adoc'}...")
+        new File(doc.name.split('\\.')[0] + '.adoc').withWriter("UTF-8") { out ->
             asciidoc.eachLine { line ->
                 out.writeLine(line)
             }
