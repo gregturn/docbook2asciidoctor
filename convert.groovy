@@ -71,7 +71,13 @@ class ProgramListing {
             results += "[source]\n"
         }
         results += "----\n"
-        results += "${section.chunks.join('').trim()}\n"
+        results += section.chunks.collect { chunk ->
+            if (chunk.metaClass.respondsTo(chunk, "render")) {
+                chunk.render()
+            } else {
+                chunk.replaceAll('\\s+', ' ')
+            }
+        }.join('\n')
         results += "----\n\n"
         results
     }
@@ -149,6 +155,16 @@ class Note {
     }
     
     String toString() { "Note ${section}"}
+}
+
+class Important {
+    def section
+
+    String render() {
+        "IMPORTANT: ${section.stripped()}\n\n"
+    }
+
+    String toString() { "IMPORTANT ${section}"}
 }
 
 class ImageData {
@@ -299,6 +315,22 @@ class AuthorGroup {
     String toString() { "AuthorGroup ${section}"}
 }
 
+class PlainText {
+    def section
+
+    String render() { "${section.chunks[0]}" }
+
+    String toString() { "PlainText ${section}" }
+}
+
+class Quote {
+    def section
+
+    String render() { "[quote] \n${section.stripped()}\n\n" }
+
+    String toString() { "PlainText ${section}" }
+}
+
 @Log
 class Docbook5Handler extends DefaultHandler {
 
@@ -356,18 +388,20 @@ class Docbook5Handler extends DefaultHandler {
                 sectionStack[-1].chunks += new ProgramListing([section:section])
             } else if (qName == "para") {
                 sectionStack[-1].chunks += new Paragraph([section:section])
-            } else if (["classname", "code"].contains(qName)) {
+            } else if (["classname", "code", "literal", "interfacename","methodname"].contains(qName)) {
                 sectionStack[-1].chunks += new Monospaced([section:section])
             } else if (["section", "example", "part", "partintro", "simpara"].contains(qName)) {
                 sectionStack[-1].chunks += section
             } else if (qName == "ulink") {
                 sectionStack[-1].chunks += new Ulink([section:section])
-            } else if (qName == "xref") {
+            } else if (["xref", "link"].contains(qName)) {
                 sectionStack[-1].chunks += new Xref([section:section])
             } else if (qName == "emphasis") {
                 sectionStack[-1].chunks += new Emphasis([section:section])
-            } else if (qName == "note") {
+            } else if (["note"].contains(qName)) {
                 sectionStack[-1].chunks += new Note([section:section])
+            } else if (["important"].contains(qName)) {
+                sectionStack[-1].chunks += new Important([section:section])
             } else if (qName == "imagedata") {
                 sectionStack[-1].chunks += new ImageData([section:section])
             } else if (qName == "imageobject") {
@@ -398,9 +432,14 @@ class Docbook5Handler extends DefaultHandler {
                 sectionStack[-1].chunks += new Author([section:section])
             } else if (qName == "authorgroup") {
                 sectionStack[-1].chunks += new AuthorGroup([section:section])
-            } else if (["releaseinfo", "date", "legalnotice", "bookinfo", "toc"].contains(qName)) {
+            } else if (["releaseinfo", "date", "legalnotice", "bookinfo", "toc", "titleabbrev", "productname", "affiliation", "year", "copyright", "holder"].contains(qName)) {
                 // ignore
-            } else {
+            } else if(["lineannotation"].contains(qName)) {
+                sectionStack[-1].chunks += new PlainText([section:section])
+            } else if (["quote"].contains(qName)){
+                sectionStack[-1].chunks += new Quote([section:section])
+            }
+            else {
                 throw new RuntimeException("Cannot parse ${qName}")
             }
             log.info("POP ${qName}: Top of sectionStack is now ${sectionStack[-1]}")

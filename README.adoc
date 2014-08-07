@@ -5,7 +5,7 @@ This script uses Spring Boot CLI to convert an existing set of docbook manuals t
 To run:
 
 ----
-$ spring run docbook2asciidoctor.groovy <file1.xml> <file2.xml> <file3.xml>
+$ spring run convert.groovy <file1.xml> <file2.xml> <file3.xml>
 ----
 
 It will print out a lot of debug information, but the above command will eventually produce:
