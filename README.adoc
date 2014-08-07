@@ -10,8 +10,8 @@ $ spring run docbook2asciidoctor.groovy <file1.xml> <file2.xml> <file3.xml>
 
 It will print out a lot of debug information, but the above command will eventually produce:
 
-* file1.ad
-* file2.ad
-* file3.ad
+* file1.adoc
+* file2.adoc
+* file3.adoc
 
 The target folder will be your current path.
