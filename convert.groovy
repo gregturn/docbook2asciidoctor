@@ -46,11 +46,16 @@ class Title {
     def section, level
     
     String render() {
-        def results = "${'='*level} ${section.chunks.join('')}"
-        if (section.attrs['subtitle'] != null) {
-            results += "\n\n*_${section.attrs['subtitle'].stripped()}_*"
+        if (section.attrs['context'] == 'table') {
+            "\n\n.${section.stripped()}\n"
+        } else {
+            def results = "${'='*level} ${section.stripped()}"
+            if (section.attrs['subtitle'] != null) {
+                results += "\n\n*_${section.attrs['subtitle'].stripped()}_*"
+            }
+            results += "\n\n"
+            results
         }
-        results += "\n\n"
     }
     
     String toString() {
@@ -71,14 +76,11 @@ class ProgramListing {
             results += "[source]\n"
         }
         results += "----\n"
+        //results += "${section.chunks.join('').trim()}\n"
         results += section.chunks.collect { chunk ->
-            if (chunk.metaClass.respondsTo(chunk, "render")) {
-                chunk.render()
-            } else {
-                chunk.replaceAll('\\s+', ' ')
-            }
-        }.join('\n')
-        results += "----\n\n"
+            "${chunk}"
+        }.join('')
+        results += "\n----\n\n"
         results
     }
     
@@ -103,7 +105,7 @@ class Monospaced {
     def section
     
     String render() {
-        "`${section.chunks.join('')}`"
+        "`${section.chunks.join('').trim()}`"
     }
     
     String toString() {
@@ -339,6 +341,108 @@ class Quote {
     String toString() { "PlainText ${section}" }
 }
 
+class Table {
+    def section
+
+    String render() { 
+        def title = section.chunks.find { it.section.qName == "title"}
+        title.section.attrs['context'] = 'table'
+        section.chunks.collect { chunk ->
+            chunk.render()
+        }.join('')
+    }
+
+    String toString() { "Table ${section}" }
+}
+
+class TableGroup {
+    def section
+
+    String render() { 
+        def results = "|===\n"
+
+        if (section.chunks.any{it.section.qName == 'colspec'} || 
+            section.chunks.any{it.section.qName == 'thead'}) {
+            
+            def tableDef = "["
+            tableDef += 'cols="' + section.chunks
+                .findAll{it.section.qName == 'colspec'}.collect {
+                    it.section.attrs['colwidth']-'*'
+                }.join(',') + '"'
+            
+            if (section.chunks.any{it.section.qName == 'thead'}) {
+                tableDef += ', options="header"]\n'
+            } else {
+                tableDef += "]\n"
+            }
+            tableDef += "// Move this line above the title\n"
+            results += tableDef
+            
+        }
+                
+        results += section.chunks.collect { chunk ->
+            chunk.render()
+        }.join('')
+        results += "|===\n"
+        results
+    }
+
+    String toString() { "TableGroup ${section}" }
+}
+
+class ColumnSpec {
+    def section
+
+    String render() { "" }
+
+    String toString() { "ColumnSpec ${section}" }
+}
+
+class TableHead {
+    def section
+
+    String render() { 
+        section.chunks.collect { chunk ->
+            chunk.render()
+        }.join('')
+    }
+
+    String toString() { "TableHead ${section}" }
+}
+
+class Row {
+    def section
+
+    String render() { 
+        section.chunks.collect { chunk ->
+            chunk.render()
+        }.join('\n')
+    }
+
+    String toString() { "Row ${section}" }
+}
+
+class Entry {
+    def section
+
+    String render() { "| ${section.stripped()}" }
+
+    String toString() { "Entry ${section}" }
+}
+
+class TableBody {
+    def section
+
+    String render() { 
+        section.chunks.collect { chunk ->
+            chunk.render()
+        }.join('\n\n') + "\n"
+    }
+
+    String toString() { "TableBody ${section}" }
+}
+
+
 @Log
 class Docbook5Handler extends DefaultHandler {
 
@@ -446,6 +550,20 @@ class Docbook5Handler extends DefaultHandler {
                 sectionStack[-1].chunks += new PlainText([section:section])
             } else if (["quote"].contains(qName)){
                 sectionStack[-1].chunks += new Quote([section:section])
+            } else if (qName == "table") {
+                sectionStack[-1].chunks += new Table([section:section])
+            } else if (qName == "tgroup") {
+                sectionStack[-1].chunks += new TableGroup([section:section])
+            } else if (qName == "colspec") {
+                sectionStack[-1].chunks += new ColumnSpec([section:section])
+            } else if (qName == "thead") {
+                sectionStack[-1].chunks += new TableHead([section:section])
+            } else if (qName == "row") {
+                sectionStack[-1].chunks += new Row([section:section])
+            } else if (qName == "entry") {
+                sectionStack[-1].chunks += new Entry([section:section])
+            } else if (qName == "tbody") {
+                sectionStack[-1].chunks += new TableBody([section:section])
             }
             else {
                 throw new RuntimeException("Cannot parse ${qName}")
