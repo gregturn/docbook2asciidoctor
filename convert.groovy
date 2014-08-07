@@ -346,7 +346,9 @@ class Table {
 
     String render() { 
         def title = section.chunks.find { it.section.qName == "title"}
-        title.section.attrs['context'] = 'table'
+        if (title != null) {
+            title.section.attrs['context'] = 'table'
+        }
         section.chunks.collect { chunk ->
             chunk.render()
         }.join('')
