@@ -42,11 +42,29 @@ class Section {
     }
 }
 
+class Example {
+    def section
+    
+    String render() {
+        def title = section.chunks.find { it.section.qName == "title"}
+        if (title != null) {
+            title.section.attrs['context'] = 'example'
+        }    
+        def results = "===="
+        results += section.chunks.collect { chunk ->
+            chunk.render()
+        }.join('')
+        results += "====\n\n"
+    }
+    
+    String toString() { "Example ${section}"}
+}
+
 class Title {
     def section, level
     
     String render() {
-        if (section.attrs['context'] == 'table') {
+        if (["table", "example"].contains(section.attrs['context'])) {
             "\n\n.${section.stripped()}\n"
         } else {
             def results = "${'='*level} ${section.stripped()}"
@@ -283,7 +301,7 @@ class Include {
         if (section.attrs['href'].contains(spring_data_commons_path)) {
             def results = "include::{spring-data-commons-docs}/${section.attrs['href']-spring_data_commons_path-'xml'+'adoc'}[]\n"
             results += "// Put the following line at the top...\n"
-            results += ":spring-data-commons-docs: https://raw.githubusercontent.com/spring-projects/spring-data-commons/issue/DATACMNS-551/src/main/asciidoc\n"
+            results += ":spring-data-commons-docs: https://raw.githubusercontent.com/spring-projects/spring-data-commons/master/src/main/asciidoc"
             results
         } else {
             "include::${section.attrs['href']-'xml'+'adoc'}[]\n"
@@ -504,8 +522,10 @@ class Docbook5Handler extends DefaultHandler {
                 sectionStack[-1].chunks += new Paragraph([section:section])
             } else if (["classname", "code", "literal", "interfacename","methodname"].contains(qName)) {
                 sectionStack[-1].chunks += new Monospaced([section:section])
-            } else if (["section", "example", "part", "partintro", "simpara", "abstract", "simplesect"].contains(qName)) {
+            } else if (["section", "part", "partintro", "simpara", "abstract", "simplesect"].contains(qName)) {
                 sectionStack[-1].chunks += section
+            } else if (qName == "example") {
+                sectionStack[-1].chunks += new Example([section:section])
             } else if (qName == "ulink") {
                 sectionStack[-1].chunks += new Ulink([section:section])
             } else if (["xref", "link"].contains(qName)) {
@@ -546,7 +566,7 @@ class Docbook5Handler extends DefaultHandler {
                 sectionStack[-1].chunks += new Author([section:section])
             } else if (qName == "authorgroup") {
                 sectionStack[-1].chunks += new AuthorGroup([section:section])
-            } else if (["releaseinfo", "date", "legalnotice", "bookinfo", "toc", "titleabbrev", "productname", "affiliation", "year", "copyright", "holder", "xi:fallback"].contains(qName)) {
+            } else if (["releaseinfo", "date", "legalnotice", "bookinfo", "toc", "titleabbrev", "productname", "affiliation", "year", "copyright", "holder", "xi:fallback", "affiliation", "jobtitle", "orgname", "email"].contains(qName)) {
                 // ignore
             } else if(["lineannotation"].contains(qName)) {
                 sectionStack[-1].chunks += new PlainText([section:section])
