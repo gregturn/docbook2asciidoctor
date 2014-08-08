@@ -462,6 +462,16 @@ class TableBody {
     String toString() { "TableBody ${section}" }
 }
 
+class Bridgehead {
+    def section
+    
+    String render() {
+        "[float]\n${'='*section.level} ${section.stripped()}\n\n"
+    }
+    
+    String toString() { "Bridgehead ${section}"}
+}
+
 
 @Log
 class Docbook5Handler extends DefaultHandler {
@@ -586,6 +596,8 @@ class Docbook5Handler extends DefaultHandler {
                 sectionStack[-1].chunks += new Entry([section:section])
             } else if (qName == "tbody") {
                 sectionStack[-1].chunks += new TableBody([section:section])
+            } else if (qName == "bridgehead") {
+                sectionStack[-1].chunks += new Bridgehead([section:section])
             }
             else {
                 throw new RuntimeException("Cannot parse ${qName}")
