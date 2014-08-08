@@ -566,7 +566,7 @@ class Docbook5Handler extends DefaultHandler {
                 sectionStack[-1].chunks += new Author([section:section])
             } else if (qName == "authorgroup") {
                 sectionStack[-1].chunks += new AuthorGroup([section:section])
-            } else if (["releaseinfo", "date", "legalnotice", "bookinfo", "toc", "titleabbrev", "productname", "affiliation", "year", "copyright", "holder", "xi:fallback", "affiliation", "jobtitle", "orgname", "email"].contains(qName)) {
+            } else if (["releaseinfo", "date", "legalnotice", "bookinfo", "toc", "titleabbrev", "productname", "affiliation", "year", "copyright", "holder", "xi:fallback", "affiliation", "jobtitle", "orgname", "email", "pubdate"].contains(qName)) {
                 // ignore
             } else if(["lineannotation"].contains(qName)) {
                 sectionStack[-1].chunks += new PlainText([section:section])
