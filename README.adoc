@@ -45,5 +45,8 @@ front page by hand. The script at first tried to gather up all this info, but to
 a maven ant plugin to do that, as well as dropping in our own CSS file. The script now does the maven asciidoctor plugin
 handle moving image data into a target folder.
 
+* Just spotted a bullet list not rendered properly. Only links appeared, but the stars for each line were rendered, so
+it wasn't hard to spot that it was done wrong.
+
 In short, whenever you convert, you MUST walk through the results and edit appropriately. Hopefully, this script has
 minimized this.
