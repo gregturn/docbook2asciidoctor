@@ -16,11 +16,11 @@ class Section {
         } else if (attrs['xml:id'] != null) {
             results += "[[${attrs['xml:id']}]]\n"
         }
-        chunks.each { chunk ->
-            if (chunk.metaClass.respondsTo(chunk, "render")) {
-                results += chunk.render()
-            } else {
-                log.info("Not sure how to handle ${chunk}")
+        if (chunks != null) {
+            chunks.each { chunk ->
+                if (chunk.metaClass.respondsTo(chunk, "render")) {
+                    results += chunk.render()
+                }
             }
         }
         results
@@ -42,17 +42,18 @@ class Section {
     }
 }
 
+@Log
 class Example {
     def section
     
     String render() {
-        def title = section.chunks.find { it.section.qName == "title"}
-        if (title != null) {
-            title.section.attrs['context'] = 'example'
-        }    
         def results = "===="
         results += section.chunks.collect { chunk ->
-            chunk.render()
+            if (chunk.metaClass.respondsTo(chunk, "render")) {
+                chunk.render()
+            } else {
+                "${chunk.trim()}"
+            }
         }.join('')
         results += "====\n\n"
     }
@@ -61,10 +62,10 @@ class Example {
 }
 
 class Title {
-    def section, level
+    def section, level, context
     
     String render() {
-        if (["table", "example"].contains(section.attrs['context'])) {
+        if (["table", "example"].contains(context)) {
             "\n\n.${section.stripped()}\n"
         } else {
             def results = "${'='*level} ${section.stripped()}"
@@ -148,9 +149,17 @@ class Xref {
     
     String render() {
         if (section.chunks.size() > 0) {
-            "<<${section.attrs['linked']},${section.stripped()}>>"
+            if (section.attrs['xlink:href'] != null) {
+                "${section.attrs['xlink:href']}[${section.stripped()}]"
+            } else {
+                "<<${section.attrs['linked']},${section.stripped()}>>"
+            }
         } else {
-            "<<${section.attrs['linkend']}>>"
+            if (section.attrs['xlink:href'] != null) {
+                "${section.attrs['xlink:href']}"
+            } else {
+                "<<${section.attrs['linkend']}>>"   
+            }
         }
     }
     
@@ -185,6 +194,17 @@ class Important {
     }
 
     String toString() { "IMPORTANT ${section}"}
+}
+
+class Warning {
+    def section
+
+    String render() {
+        "WARNING: ${sections.stripped()}\n\n"
+
+    }
+
+    String toString() { "WARNING: ${section}"}
 }
 
 class ImageData {
@@ -286,7 +306,11 @@ class ItemizedList {
     
     String render() {
         section.chunks.collect { chunk ->
-            "* ${chunk.render()}"
+            if (chunk.metaClass.respondsTo(chunk, "render")) {
+                "* ${chunk.render()}"
+            } else {
+                "* TBD ${chunk}"
+            }
         }.join("\n") + "\n\n"
     }
     
@@ -363,12 +387,12 @@ class Table {
     def section
 
     String render() { 
-        def title = section.chunks.find { it.section.qName == "title"}
-        if (title != null) {
-            title.section.attrs['context'] = 'table'
-        }
         section.chunks.collect { chunk ->
-            chunk.render()
+            if (chunk.metaClass.respondsTo(chunk, "render")) {
+                chunk.render()
+            } else {
+                "${chunk.trim()}"
+            }
         }.join('')
     }
 
@@ -401,7 +425,11 @@ class TableGroup {
         }
                 
         results += section.chunks.collect { chunk ->
-            chunk.render()
+            if (chunk.metaClass.respondsTo(chunk, "render")) {
+                chunk.render()
+            } else {
+                "${chunk.trim()}"
+            }
         }.join('')
         results += "|===\n"
         results
@@ -472,6 +500,24 @@ class Bridgehead {
     String toString() { "Bridgehead ${section}"}
 }
 
+class TBD {
+    def section
+    
+    String render() { toString() }
+    
+    String toString() { "TBD ${section}"}
+}
+
+class Sidebar {
+    def section
+    
+    String render() {
+        ".Title goes here\n****${section.stripped()}\n****\n"
+    }
+    
+    String toString() { "Sidebar ${section}"}
+}
+
 
 @Log
 class Docbook5Handler extends DefaultHandler {
@@ -520,7 +566,13 @@ class Docbook5Handler extends DefaultHandler {
             rootSection = section
         } else {
             if (qName == "title") {
-                sectionStack[-1].chunks += new Title([section:section, level:sectionStack[-1].level])
+                if (sectionStack[-1].qName == "example") {
+                    sectionStack[-1].chunks += new Title([section:section, level:sectionStack[-1].level, context:'example'])
+                } else if (sectionStack[-1].qName == "table") {
+                    sectionStack[-1].chunks += new Title([section:section, level:sectionStack[-1].level, context:'table'])
+                } else {
+                    sectionStack[-1].chunks += new Title([section:section, level:sectionStack[-1].level])
+                }
             } else if (qName == "subtitle") {
                 // Find existing title and add attrs['subtitle']
                 def title = sectionStack[-1].chunks.find{it.section.qName == 'title'}
@@ -530,9 +582,9 @@ class Docbook5Handler extends DefaultHandler {
                 sectionStack[-1].chunks += new ProgramListing([section:section])
             } else if (qName == "para") {
                 sectionStack[-1].chunks += new Paragraph([section:section])
-            } else if (["classname", "code", "literal", "interfacename","methodname"].contains(qName)) {
+            } else if (["classname", "code", "literal", "interface", "interfacename","methodname", "tag", "filename"].contains(qName)) {
                 sectionStack[-1].chunks += new Monospaced([section:section])
-            } else if (["section", "part", "partintro", "simpara", "abstract", "simplesect"].contains(qName)) {
+            } else if (["section", "part", "partintro", "simpara", "abstract", "simplesect", "chapter"].contains(qName)) {
                 sectionStack[-1].chunks += section
             } else if (qName == "example") {
                 sectionStack[-1].chunks += new Example([section:section])
@@ -546,6 +598,8 @@ class Docbook5Handler extends DefaultHandler {
                 sectionStack[-1].chunks += new Note([section:section])
             } else if (["important"].contains(qName)) {
                 sectionStack[-1].chunks += new Important([section:section])
+            } else if (["caution"].contains(qName)) {
+                sectionStack[-1].chunks += new Warning([section:section])
             } else if (qName == "imagedata") {
                 sectionStack[-1].chunks += new ImageData([section:section])
             } else if (qName == "imageobject") {
@@ -598,6 +652,10 @@ class Docbook5Handler extends DefaultHandler {
                 sectionStack[-1].chunks += new TableBody([section:section])
             } else if (qName == "bridgehead") {
                 sectionStack[-1].chunks += new Bridgehead([section:section])
+            } else if (["co", "callout", "calloutlist"].contains(qName)) {
+                sectionStack[-1].chunks += new TBD([section:section])
+            } else if (qName == "sidebar") {
+                sectionStack[-1].chunks += new Sidebar([section:section])
             }
             else {
                 throw new RuntimeException("Cannot parse ${qName}")
@@ -636,7 +694,13 @@ class Docbook5Handler extends DefaultHandler {
             )
         )
         inputSource.encoding = "UTF-8"
-        reader.parse(inputSource)
+        try {
+            reader.parse(inputSource)
+        } catch (groovy.lang.MissingPropertyException e) {
+            log.info("Failed on ${doc}")
+            log.info("sectionStack is ${sectionStack}")
+            log.info(e.toString())
+        }
     }   
     
 }
