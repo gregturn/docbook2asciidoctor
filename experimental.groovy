@@ -231,7 +231,8 @@ class ImageObject {
     def section
     
     String render() { 
-        "${section.chunks[0].render()}"
+        def rendered = section.chunks.find{ it.metaClass.respondsTo(it, "render") }.render()
+        "${rendered}"
     }
 
     String toString() { "ImageObject ${section}"}
@@ -241,7 +242,8 @@ class MediaObject {
     def section
     
     String render() { 
-        "${section.chunks[0].render()}"
+        def rendered = section.chunks.find{ it.metaClass.respondsTo(it, "render") }.render()
+        "${rendered}"
     }
     
     String toString() { "MediaObject ${section}"}
@@ -684,6 +686,8 @@ class Docbook5Handler extends DefaultHandler {
                 sectionStack[-1].chunks += new Sidebar([section:section])
             } else if (qName == "tip") {
                 sectionStack[-1].chunks += new Tip([section:section])
+            } else if (qName == "caption") {
+                sectionStack[-1].chunks += new TBD([section:section])
             }
             else {
                 throw new RuntimeException("Cannot parse ${qName}")
