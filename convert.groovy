@@ -2,7 +2,14 @@ import javax.xml.parsers.SAXParserFactory
 import org.xml.sax.helpers.DefaultHandler
 import org.xml.sax.*
 
-class C {
+class Utils {
+    static String render(def chunk) {
+        if (chunk.metaClass.respondsTo(chunk, "render")) {
+            chunk.render()
+        } else {
+            chunk
+        }
+    }
 }
 
 @Log
@@ -18,9 +25,7 @@ class Section {
         }
         if (chunks != null) {
             chunks.each { chunk ->
-                if (chunk.metaClass.respondsTo(chunk, "render")) {
-                    results += chunk.render()
-                }
+                results += Utils.render(chunk).replaceAll('^\\s+', '')
             }
         }
         results
@@ -66,14 +71,14 @@ class Title {
     
     String render() {
         if (["table", "example"].contains(context)) {
-            "\n\n.${section.stripped()}\n"
+            return "\n\n.${section.stripped()}\n"
         } else {
             def results = "${'='*level} ${section.stripped()}"
             if (section.attrs['subtitle'] != null) {
                 results += "\n\n*_${section.attrs['subtitle'].stripped()}_*"
             }
             results += "\n\n"
-            results
+            return results
         }
     }
     
@@ -132,6 +137,16 @@ class Monospaced {
     }
 }
 
+class Italics {
+    def section
+    
+    String render() {
+        "_${section.stripped()}_"
+    }
+    
+    String toString() { "Italics ${section}"}
+}
+
 class Ulink {
     def section
     
@@ -152,7 +167,7 @@ class Xref {
             if (section.attrs['xlink:href'] != null) {
                 "${section.attrs['xlink:href']}[${section.stripped()}]"
             } else {
-                "<<${section.attrs['linked']},${section.stripped()}>>"
+                "<<${section.attrs['linkend']},${section.stripped()}>>"
             }
         } else {
             if (section.attrs['xlink:href'] != null) {
@@ -170,7 +185,7 @@ class Emphasis {
     def section
     
     String render() {
-        "*${section.chunks.join('')}*"
+        "*${section.chunks.collect{Utils.render(it)}.join('')}*"
     }
     
     String toString() { "Bold ${section}"}
@@ -200,11 +215,22 @@ class Warning {
     def section
 
     String render() {
-        "WARNING: ${sections.stripped()}\n\n"
+        "WARNING: ${section.stripped()}\n\n"
 
     }
 
     String toString() { "WARNING: ${section}"}
+}
+
+class Tip {
+    def section
+
+    String render() {
+        "TIP: ${section.stripped()}\n\n"
+
+    }
+
+    String toString() { "TIP: ${section}"}
 }
 
 class ImageData {
@@ -221,7 +247,7 @@ class ImageObject {
     def section
     
     String render() { 
-        "${section.chunks[0].render()}"
+        "${section.chunks.find{it.metaClass.respondsTo(it,'render')}.render()}"
     }
 
     String toString() { "ImageObject ${section}"}
@@ -231,7 +257,7 @@ class MediaObject {
     def section
     
     String render() { 
-        "${section.chunks[0].render()}"
+        "${section.chunks.find{it.metaClass.respondsTo(it,'render')}.render()}"
     }
     
     String toString() { "MediaObject ${section}"}
@@ -241,7 +267,7 @@ class Screenshot {
     def section
     
     String render() { 
-        "${section.chunks[0].render()}"
+        "${section.chunks.find{it.metaClass.respondsTo(it,'render')}.render()}"
     }
     
     String toString() { "Screenshot ${section}"}
@@ -271,7 +297,7 @@ class VarListEntry {
     def section
     
     String render() { 
-        "${section.chunks[0].render()}\n${section.chunks[1].render()}\n"
+        "${section.chunks.collect{Utils.render(it)}.join('\n')}"
     }
     
     String toString() { "VarListEntry ${section}"}
@@ -282,7 +308,7 @@ class VariableList {
     
     String render() { 
         "\n\n" + section.chunks.collect { chunk ->
-            chunk.render()
+            Utils.render(chunk)
         }.join("\n")
     }
     
@@ -294,7 +320,7 @@ class OrderedList {
     
     String render() { 
         section.chunks.collect { chunk ->
-            ". ${chunk.render()}"
+            ". ${Utils.render(chunk)}"
         }.join("\n") + "\n\n"
     }
     
@@ -306,11 +332,7 @@ class ItemizedList {
     
     String render() {
         section.chunks.collect { chunk ->
-            if (chunk.metaClass.respondsTo(chunk, "render")) {
-                "* ${chunk.render()}"
-            } else {
-                "* TBD ${chunk}"
-            }
+            Utils.render(chunk)
         }.join("\n") + "\n\n"
     }
     
@@ -388,11 +410,7 @@ class Table {
 
     String render() { 
         section.chunks.collect { chunk ->
-            if (chunk.metaClass.respondsTo(chunk, "render")) {
-                chunk.render()
-            } else {
-                "${chunk.trim()}"
-            }
+            Utils.render(chunk)
         }.join('')
     }
 
@@ -405,16 +423,20 @@ class TableGroup {
     String render() { 
         def results = "|===\n"
 
-        if (section.chunks.any{it.section.qName == 'colspec'} || 
-            section.chunks.any{it.section.qName == 'thead'}) {
+        if (section.chunks.any{it.hasProperty('section') && it.section.qName == 'colspec'} || 
+            section.chunks.any{it.hasProperty('section') && it.section.qName == 'thead'}) {
             
             def tableDef = "["
             tableDef += 'cols="' + section.chunks
-                .findAll{it.section.qName == 'colspec'}.collect {
-                    it.section.attrs['colwidth']-'*'
+                .findAll{it.hasProperty('section') && it.section.qName == 'colspec'}.collect {
+                    if (it.section.attrs['colwidth'] != null) {
+                        it.section.attrs['colwidth']-'*'
+                    } else {
+                        "1"
+                    }
                 }.join(',') + '"'
             
-            if (section.chunks.any{it.section.qName == 'thead'}) {
+            if (section.chunks.any{it.hasProperty('section') && it.section.qName == 'thead'}) {
                 tableDef += ', options="header"]\n'
             } else {
                 tableDef += "]\n"
@@ -425,11 +447,7 @@ class TableGroup {
         }
                 
         results += section.chunks.collect { chunk ->
-            if (chunk.metaClass.respondsTo(chunk, "render")) {
-                chunk.render()
-            } else {
-                "${chunk.trim()}"
-            }
+            Utils.render(chunk)
         }.join('')
         results += "|===\n"
         results
@@ -451,7 +469,7 @@ class TableHead {
 
     String render() { 
         section.chunks.collect { chunk ->
-            chunk.render()
+            Utils.render(chunk)
         }.join('')
     }
 
@@ -463,7 +481,7 @@ class Row {
 
     String render() { 
         section.chunks.collect { chunk ->
-            chunk.render()
+            Utils.render(chunk)
         }.join('\n')
     }
 
@@ -483,7 +501,7 @@ class TableBody {
 
     String render() { 
         section.chunks.collect { chunk ->
-            chunk.render()
+            Utils.render(chunk)
         }.join('\n\n') + "\n"
     }
 
@@ -516,6 +534,16 @@ class Sidebar {
     }
     
     String toString() { "Sidebar ${section}"}
+}
+
+class Comment {
+    def section
+    
+    String render() {
+        "////\nRemark\n\n${section.stripped()}\n////\n\n"
+    }
+    
+    String toString() { "Comment ${section}"}
 }
 
 
@@ -582,7 +610,7 @@ class Docbook5Handler extends DefaultHandler {
                 sectionStack[-1].chunks += new ProgramListing([section:section])
             } else if (qName == "para") {
                 sectionStack[-1].chunks += new Paragraph([section:section])
-            } else if (["classname", "code", "literal", "interface", "interfacename","methodname", "tag", "filename"].contains(qName)) {
+            } else if (["classname", "code", "literal", "interface", "interfacename","methodname", "tag", "filename", "property", "screen", "package"].contains(qName)) {
                 sectionStack[-1].chunks += new Monospaced([section:section])
             } else if (["section", "part", "partintro", "simpara", "abstract", "simplesect", "chapter"].contains(qName)) {
                 sectionStack[-1].chunks += section
@@ -652,10 +680,16 @@ class Docbook5Handler extends DefaultHandler {
                 sectionStack[-1].chunks += new TableBody([section:section])
             } else if (qName == "bridgehead") {
                 sectionStack[-1].chunks += new Bridgehead([section:section])
-            } else if (["co", "callout", "calloutlist"].contains(qName)) {
+            } else if (["co", "callout", "calloutlist", "caption"].contains(qName)) {
                 sectionStack[-1].chunks += new TBD([section:section])
             } else if (qName == "sidebar") {
                 sectionStack[-1].chunks += new Sidebar([section:section])
+            } else if (qName == "tip") {
+                sectionStack[-1].chunks += new Tip([section:section])
+            } else if (qName == "remark") {
+                sectionStack[-1].chunks += new Comment([section:section])
+            } else if (qName == "citetitle") {
+                sectionStack[-1].chunks += new Italics([section:section])
             }
             else {
                 throw new RuntimeException("Cannot parse ${qName}")
@@ -694,13 +728,7 @@ class Docbook5Handler extends DefaultHandler {
             )
         )
         inputSource.encoding = "UTF-8"
-        try {
-            reader.parse(inputSource)
-        } catch (groovy.lang.MissingPropertyException e) {
-            log.info("Failed on ${doc}")
-            log.info("sectionStack is ${sectionStack}")
-            log.info(e.toString())
-        }
+        reader.parse(inputSource)
     }   
     
 }

@@ -35,7 +35,7 @@ explaining WHAT you must do when it fails to render in asciidoctor.
 * Table column specs are also quite tricky. The script grabs all <colspec> elements, extras their colswidth attributes,
 and then tries to remove any "*", but this doesn't seem to ALWAYS work.
 
-* <example> blocks also don't render the title and opening/clossing in the right order.
+* <example> blocks don't render the title and opening/closing in the right order.
 
 * If you have an index page with things like author details, copyrights, bookinfo, etc., its simply easier to write the
 front page by hand. The script at first tried to gather up all this info, but to make the script more flexible, this
