@@ -45,6 +45,9 @@ front page by hand. The script at first tried to gather up all this info, but to
 a maven ant plugin to do that, as well as dropping in our own CSS file. The script now does the maven asciidoctor plugin
 handle moving image data into a target folder.
 
+* Callouts are too hard and complex to convert the way docbook does them. Basically, all the info is passed through in
+an embedded fashion, meaning you need to go in and redo those parts yourself. Learn about them
+
 * Just spotted a bullet list not rendered properly. Only links appeared, but the stars for each line were rendered, so
 it wasn't hard to spot that it was done wrong.
 
